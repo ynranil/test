@@ -1,6 +1,4 @@
 #!/bin/bash
-
-# ASCII sanatı
 echo "
 ╭━━━╮╱╱╱╱╱╱╭━━━╮
 ┃╭━╮┃╱╱╱╱╱╱┃╭━╮┃
@@ -12,14 +10,42 @@ echo "
 ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╰━━╯
 "
 
-# Node ismini al
-read -p "Lütfen bir node ismi belirtin: " NODE_NAME
+read -p "Enter WALLET name:" WALLET
+echo 'export WALLET='$WALLET
+read -p "Enter your MONIKER :" MONIKER
+echo 'export MONIKER='$MONIKER
+read -p "Enter your PORT (for example 17, default port=26):" PORT
+echo 'export PORT='$PORT
+read -p "Enter your WEBSITE:" WEB
+echo 'export WEBSITE='$WEB
+read -p "Enter details:" DET
+echo 'export DETAILS='$DET
 
-# Gerekli kurulumlar
-sudo apt update && sudo apt upgrade -y
-sudo apt install curl git wget htop tmux build-essential jq make lz4 gcc unzip -y
+# set vars
+echo "export WALLET="$WALLET"" >> $HOME/.bash_profile
+echo "export MONIKER="$MONIKER"" >> $HOME/.bash_profile
+echo "export MANTRA_CHAIN_ID="mantra-hongbai-1"" >> $HOME/.bash_profile
+echo "export MANTRA_PORT="$PORT"" >> $HOME/.bash_profile
+source $HOME/.bash_profile
 
-# Go kurulumu
+printLine() {
+    echo "-----------------------------------------------------"
+}
+
+printWhite() {
+    echo -e "\e[1m\e[37m$1\e[0m"
+}
+
+printLine
+echo -e "Moniker:        \e[1m\e[37m$MONIKER\e[0m"
+echo -e "Wallet:         \e[1m\e[37m$WALLET\e[0m"
+echo -e "Chain id:       \e[1m\e[37m$MANTRA_CHAIN_ID\e[0m"
+echo -e "Node custom port:  \e[1m\e[37m$MANTRA_PORT\e[0m"
+printLine
+sleep 1
+
+printWhite "1. Installing go..." && sleep 1
+# install go, if needed
 cd $HOME
 VER="1.21.3"
 wget "https://golang.org/dl/go$VER.linux-amd64.tar.gz"
@@ -31,75 +57,121 @@ echo "export PATH=$PATH:/usr/local/go/bin:~/go/bin" >> ~/.bash_profile
 source $HOME/.bash_profile
 [ ! -d ~/go/bin ] && mkdir -p ~/go/bin
 
-# Dosyaları çekelim ve kuralım
+echo $(go version) && sleep 1
+
+source <(curl -s https://raw.githubusercontent.com/itrocket-team/testnet_guides/main/utils/dependencies_install)
+
+printWhite "4. Installing binary..." && sleep 1
+# download binary
 cd $HOME
-mkdir -p $HOME/.warden/cosmovisor/genesis/bin
-wget https://github.com/warden-protocol/wardenprotocol/releases/download/v0.3.0/wardend_Linux_x86_64.zip
-unzip wardend_Linux_x86_64.zip
-rm -rf wardend_Linux_x86_64.zip
-chmod +x wardend
-mv wardend $HOME/.warden/cosmovisor/genesis/bin/
-sudo ln -s $HOME/.warden/cosmovisor/genesis $HOME/.warden/cosmovisor/current -f
-sudo ln -s $HOME/.warden/cosmovisor/current/bin/wardend /usr/local/bin/wardend -f
-go install cosmossdk.io/tools/cosmovisor/cmd/cosmovisor@v1.5.0
+sudo wget -O /usr/lib/libwasmvm.x86_64.so https://github.com/CosmWasm/wasmvm/releases/download/v1.3.1/libwasmvm.x86_64.so
+wget https://github.com/MANTRA-Finance/public/raw/main/mantrachain-hongbai/mantrachaind-linux-amd64.zip
+unzip mantrachaind-linux-amd64.zip
+rm mantrachaind-linux-amd64.zip
+mv mantrachaind $HOME/go/bin
 
-# Servis oluşturalım
-cat << EOF | sudo tee /etc/systemd/system/wardend.service > /dev/null
+printWhite "5. Configuring and init app..." && sleep 1
+# config and init app
+mantrachaind config node tcp://localhost:${MANTRA_PORT}657
+mantrachaind config keyring-backend os
+mantrachaind config chain-id mantra-hongbai-1
+mantrachaind init $MONIKER --chain-id mantra-hongbai-1
+sleep 1
+echo done
+
+printWhite "6. Downloading genesis and addrbook..." && sleep 1
+# download genesis and addrbook
+wget -O $HOME/.mantrachain/config/genesis.json https://testnet-files.itrocket.net/mantra/genesis.json
+wget -O $HOME/.mantrachain/config/addrbook.json https://testnet-files.itrocket.net/mantra/addrbook.json
+sleep 1
+echo done
+
+printWhite "7. Adding seeds, peers, configuring custom ports, pruning, minimum gas price..." && sleep 1
+# set seeds and peers
+SEEDS="a9a71700397ce950a9396421877196ac19e7cde0@mantra-testnet-seed.itrocket.net:22656"
+PEERS="1a46b1db53d1ff3dbec56ec93269f6a0d15faeb4@mantra-testnet-peer.itrocket.net:22656"
+sed -i -e "s/^seeds *=.*/seeds = \"$SEEDS\"/; s/^persistent_peers *=.*/persistent_peers = \"$PEERS\"/" $HOME/.mantrachain/config/config.toml
+
+# set custom ports in app.toml
+sed -i.bak -e "s%:1317%:${MANTRA_PORT}317%g;
+s%:8080%:${MANTRA_PORT}080%g;
+s%:9090%:${MANTRA_PORT}090%g;
+s%:9091%:${MANTRA_PORT}091%g;
+s%:8545%:${MANTRA_PORT}545%g;
+s%:8546%:${MANTRA_PORT}546%g;
+s%:6065%:${MANTRA_PORT}065%g" $HOME/.mantrachain/config/app.toml
+
+
+# set custom ports in config.toml file
+sed -i.bak -e "s%:26658%:${MANTRA_PORT}658%g;
+s%:26657%:${MANTRA_PORT}657%g;
+s%:6060%:${MANTRA_PORT}060%g;
+s%:26656%:${MANTRA_PORT}656%g;
+s%^external_address = \"\"%external_address = \"$(wget -qO- eth0.me):${MANTRA_PORT}656\"%;
+s%:26660%:${MANTRA_PORT}660%g" $HOME/.mantrachain/config/config.toml
+
+# config pruning
+sed -i -e "s/^pruning *=.*/pruning = \"custom\"/" $HOME/.mantrachain/config/app.toml
+sed -i -e "s/^pruning-keep-recent *=.*/pruning-keep-recent = \"100\"/" $HOME/.mantrachain/config/app.toml
+sed -i -e "s/^pruning-interval *=.*/pruning-interval = \"50\"/" $HOME/.mantrachain/config/app.toml
+
+# set minimum gas price, enable prometheus and disable indexing
+sed -i 's|minimum-gas-prices =.*|minimum-gas-prices = "0.0002uom"|g' $HOME/.mantrachain/config/app.toml
+sed -i -e "s/prometheus = false/prometheus = true/" $HOME/.mantrachain/config/config.toml
+sed -i -e "s/^indexer *=.*/indexer = \"null\"/" $HOME/.mantrachain/config/config.toml
+sleep 1
+echo done
+
+# create service file
+sudo tee /etc/systemd/system/mantrachaind.service > /dev/null <<EOF
 [Unit]
-Description=warden node service
+Description=mantra node
 After=network-online.target
-
 [Service]
 User=$USER
-ExecStart=$(which cosmovisor) run start
+WorkingDirectory=$HOME/.mantrachain
+ExecStart=$(which mantrachaind) start --home $HOME/.mantrachain
 Restart=on-failure
-RestartSec=10
+RestartSec=5
 LimitNOFILE=65535
-Environment="DAEMON_HOME=$HOME/.warden"
-Environment="DAEMON_NAME=wardend"
-Environment="UNSAFE_SKIP_BACKUP=true"
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:$HOME/.warden/cosmovisor/current/bin"
-
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# İnit
-wardend init "$NODE_NAME" --chain-id buenavista-1
-
-# Genesis addrbook
-wget -O $HOME/.warden/config/genesis.json "https://raw.githubusercontent.com/Core-Node-Team/Testnet-TR/main/Warden-buenavista/genesis.json"
-wget -O $HOME/.warden/config/addrbook.json "https://raw.githubusercontent.com/Core-Node-Team/Testnet-TR/main/Warden-buenavista/addrbook.json"
-
-# Gas ayarı
-sed -i.bak -e "s/^minimum-gas-prices *=.*/minimum-gas-prices = \"0.0025uward\"/;" ~/.warden/config/app.toml
-
-# Peer
-SEEDS="8288657cb2ba075f600911685670517d18f54f3b@warden-testnet-seed.itrocket.net:18656"
-PEERS="b14f35c07c1b2e58c4a1c1727c89a5933739eeea@warden-testnet-peer.itrocket.net:18656,61446070887838944c455cb713a7770b41f35ac5@37.60.249.101:26656,0be8cf6de2a01a6dc7adb29a801722fe4d061455@65.109.115.100:27060,dc0122e37c203dec43306430a1f1879650653479@37.27.97.16:26656,8288657cb2ba075f600911685670517d18f54f3b@65.108.231.124:18656"
-sed -i -e "s/^seeds *=.*/seeds = \"$SEEDS\"/; s/^persistent_peers *=.*/persistent_peers = \"$PEERS\"/" $HOME/.warden/config/config.toml
-
-# Snap
-wardend tendermint unsafe-reset-all --home $HOME/.warden
-if curl -s --head curl http://37.120.189.81/warden_testnet/warden_snap.tar.lz4 | head -n 1 | grep "200" > /dev/null; then
-  curl http://37.120.189.81/warden_testnet/warden_snap.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.warden
-else
-  echo "Snap bulunamadı."
+printWhite "8. Downloading snapshot and starting node..." && sleep 1
+# reset and download snapshot
+mantrachaind tendermint unsafe-reset-all --home $HOME/.mantrachain
+if curl -s --head curl https://testnet-files.itrocket.net/mantra/snap_mantra.tar.lz4 | head -n 1 | grep "200" > /dev/null; then
+  curl https://testnet-files.itrocket.net/mantra/snap_mantra.tar.lz4 | lz4 -dc - | tar -xf - -C $HOME/.mantrachain
+    else
+  echo no have snap
 fi
 
-# Port ayarı
-CUSTOM_PORT=112
-
-sed -i -e "s%^proxy_app = \"tcp://127.0.0.1:26658\"%proxy_app = \"tcp://127.0.0.1:${CUSTOM_PORT}58\"%; s%^laddr = \"tcp://127.0.0.1:26657\"%laddr = \"tcp://127.0.0.1:${CUSTOM_PORT}57\"%; s%^pprof_laddr = \"localhost:6060\"%pprof_laddr = \"localhost:${CUSTOM_PORT}60\"%; s%^laddr = \"tcp://0.0.0.0:26656\"%laddr = \"tcp://0.0.0.0:${CUSTOM_PORT}56\"%; s%^prometheus_listen_addr = \":26660\"%prometheus_listen_addr = \":${CUSTOM_PORT}66\"%" $HOME/.warden/config/config.toml
-
-sed -i -e "s%^address = \"tcp://0.0.0.0:1317\"%address = \"tcp://0.0.0.0:${CUSTOM_PORT}17\"%; s%^address = \":8080\"%address = \":${CUSTOM_PORT}80\"%; s%^address = \"localhost:9090\"%address = \"localhost:${CUSTOM_PORT}90\"%; s%^address = \"localhost:9091\"%address = \"localhost:${CUSTOM_PORT}91\"%" $HOME/.warden/config/app.toml
-
-# Teşekkür mesajı
-echo "Coinseyir kurulumu tamamlandı. Teşekkür ederiz!"
-
-# Bekleme süresi
-sleep 5
-
-# Servis yeniden başlatılıyor ve günlük izleniyor
-sudo systemctl restart wardend
-journalctl -fu wardend -o cat
+# enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable mantrachaind
+sudo systemctl restart mantrachaind 
+sleep 3
+rm $HOME/validator.json
+sleep 3
+cd $HOME
+# Create validator.json file
+echo "{\"pubkey\":{\"@type\":\"/cosmos.crypto.ed25519.PubKey\",\"key\":\"$(wardend comet show-validator | grep -Po '\"key\":\s*\"\K[^"]*')\"},
+    \"amount\": \"1000000uward\",
+    \"moniker\": \"$MONIKER\",
+    \"identity\": \"\",
+    \"website\": \"$WEB\",
+    \"security\": \"\",
+    \"details\": \"$DET\",
+    \"commission-rate\": \"0.1\",
+    \"commission-max-rate\": \"0.2\",
+    \"commission-max-change-rate\": \"0.01\",
+    \"min-self-delegation\": \"1\"
+}" > validator.json
+sleep 1
+RPC="http://$(wget -qO- eth0.me)$(grep -A 3 "\[rpc\]" $HOME/.mantrachain/config/config.toml | egrep -o ":[0-9]+")" && echo $RPC
+sleep 4
+curl $RPC/status
+sleep 2
+echo $RPC
+echo -e "sudo journalctl -u mantrachaind -f  "
