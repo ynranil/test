@@ -156,7 +156,7 @@ rm $HOME/validator.json
 sleep 3
 cd $HOME
 # Create validator.json file
-echo "{\"pubkey\":{\"@type\":\"/cosmos.crypto.ed25519.PubKey\",\"key\":\"$(wardend comet show-validator | grep -Po '\"key\":\s*\"\K[^"]*')\"},
+echo "{\"pubkey\":{\"@type\":\"/cosmos.crypto.ed25519.PubKey\",\"key\":\"$(mantra comet show-validator | grep -Po '\"key\":\s*\"\K[^"]*')\"},
     \"amount\": \"1000000uward\",
     \"moniker\": \"$MONIKER\",
     \"identity\": \"\",
