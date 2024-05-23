@@ -156,7 +156,7 @@ rm $HOME/validator.json
 sleep 3
 cd $HOME
 # Create validator.json file
-echo "{\"pubkey\":{\"@type\":\"/cosmos.crypto.ed25519.PubKey\",\"key\":\"$(mantrad comet show-validator | grep -Po '\"key\":\s*\"\K[^"]*')\"},
+echo "{\"pubkey\":{\"@type\":\"/cosmos.crypto.ed25519.PubKey\",\"key\":\"$(mantrachaind comet show-validator | grep -Po '\"key\":\s*\"\K[^"]*')\"},
     \"amount\": \"1000000uward\",
     \"moniker\": \"$MONIKER\",
     \"identity\": \"\",
@@ -176,4 +176,4 @@ sleep 2
 echo $RPC
 echo -e "sudo journalctl -u mantrachaind -f  "
 sleep 1
-wardend keys add $WALLET
+mantrachaind keys add $WALLET
