@@ -16,9 +16,9 @@ read -p "Enter your MONIKER :" MONIKER
 echo 'export MONIKER='$MONIKER
 read -p "Enter your PORT (for example 17, default port=26):" PORT
 echo 'export PORT='$PORT
-read -p "Enter your WEBSITE:" WEB
+read -p "Enter your WEBSITE:" WEBSITE
 echo 'export WEBSITE='$WEB
-read -p "Enter details:" DET
+read -p "Enter details:" VALIDATOR DETAILS
 echo 'export DETAILS='$DET
 
 # set vars
@@ -59,8 +59,8 @@ source $HOME/.bash_profile
 
 echo $(go version) && sleep 1
 
-source <(curl -s https://raw.githubusercontent.com/itrocket-team/testnet_guides/main/utils/dependencies_install)
-
+sudo apt install curl git wget htop tmux build-essential jq make lz4 gcc unzip -y
+p
 printWhite "4. Installing binary..." && sleep 1
 # download binary
 cd $HOME
@@ -152,28 +152,17 @@ sudo systemctl daemon-reload
 sudo systemctl enable mantrachaind
 sudo systemctl restart mantrachaind 
 sleep 3
-rm $HOME/validator.json
-sleep 3
-cd $HOME
-# Create validator.json file
-echo "{\"pubkey\":{\"@type\":\"/cosmos.crypto.ed25519.PubKey\",\"key\":\"$(mantrachaind comet show-validator | grep -Po '\"key\":\s*\"\K[^"]*')\"},
-    \"amount\": \"1000000uward\",
-    \"moniker\": \"$MONIKER\",
-    \"identity\": \"\",
-    \"website\": \"$WEB\",
-    \"security\": \"\",
-    \"details\": \"$DET\",
-    \"commission-rate\": \"0.1\",
-    \"commission-max-rate\": \"0.2\",
-    \"commission-max-change-rate\": \"0.01\",
-    \"min-self-delegation\": \"1\"
-}" > validator.json
-sleep 1
-RPC="http://$(wget -qO- eth0.me)$(grep -A 3 "\[rpc\]" $HOME/.mantrachain/config/config.toml | egrep -o ":[0-9]+")" && echo $RPC
-sleep 4
-curl $RPC/status
-sleep 2
-echo $RPC
+
 echo -e "sudo journalctl -u mantrachaind -f  "
 sleep 1
 mantrachaind keys add $WALLET
+
+echo -e '\n\e[42mCheck node status\e[0m\n' && sleep 1
+
+if [[ `service $NODE status | grep active` =~ "running" ]]; then
+  echo -e "Your $NODE node \e[32minstalled and works\e[39m!"
+  echo -e "You can check node status by the command: \e[7mcurl -s localhost:${PORT}657/status | jq .result.sync_info.catching_up\e[0m"
+  echo -e "Check logs with: \e[7msudo journalctl -u mantrachaind -f\e[0m"
+else
+  echo -e "Your $NODE node \e[31mwas not installed correctly\e[39m, please reinstall."
+fi
