@@ -1,5 +1,5 @@
 #!/bin/bash
-
+printWhite "Ayarlanıyor" && sleep 1
 SNAP_RPC="https://initia-testnet-rpc.polkachu.com:443"
 
 LATEST_HEIGHT=$(curl -s $SNAP_RPC/block | jq -r .result.block.header.height); \
@@ -10,3 +10,4 @@ sed -i.bak -E "s|^(enable[[:space:]]+=[[:space:]]+).*$|\1true| ; \
 s|^(rpc_servers[[:space:]]+=[[:space:]]+).*$|\1\"$SNAP_RPC,$SNAP_RPC\"| ; \
 s|^(trust_height[[:space:]]+=[[:space:]]+).*$|\1$BLOCK_HEIGHT| ; \
 s|^(trust_hash[[:space:]]+=[[:space:]]+).*$|\1\"$TRUST_HASH\"|" $HOME/.initia/config/config.toml
+printWhite "Ayarlandı"
